@@ -9,7 +9,7 @@ CPPFLAGS = -std=c++11 -pthread
 LDFLAGS =
 SOURCES = tut1.cpp
 
-all: tut1 run
+all: tut1 run clean
 
 tut1: $(SOURCES)
 	$(CC) $(CPPFLAGS) $(SOURCES) $(LDFLAGS) -o $@
