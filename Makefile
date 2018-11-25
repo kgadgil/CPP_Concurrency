@@ -7,15 +7,15 @@
 CC = g++
 CPPFLAGS = -std=c++11 -pthread
 LDFLAGS =
-SOURCES = tut1.cpp
+SOURCES = tut4.cpp
 
-all: tut1 run clean
+all: tut run clean
 
-tut1: $(SOURCES)
+tut: $(SOURCES)
 	$(CC) $(CPPFLAGS) $(SOURCES) $(LDFLAGS) -o $@
 
-run: tut1
-	./tut1
+run: tut
+	./tut 1
 
 clean:
-	rm -f *.o tut1
+	rm -f *.o tut
