@@ -40,16 +40,35 @@ int main (int argc, char* argv[]){
 
 
 	/***************************************/
-	//INITIALIZER LIST 
+	//PASSING INITIALIZER LIST/VECTOR TO THREAD
 	/***************************************/
 
 	std::initializer_list<int> il = {1,2,3};
 	std::vector<int> vec = {4,5,6};
-	printme(il);
-	printme(vec);
+	//printme(il);
+	//printme(vec);
 
-	/*for (int i =0; i < NUMTHREADS; i++){
-		threadArr[i].join();
+	/***************************************/
+	//PASSING TO TEMPLATED FUNCTION 
+	/***************************************/
+	/*for (int i = 0; i < NUMTHREADS; i++){
+		threadArr[i] = std::thread(printme<std::initializer_list<int>>, il);
 	}*/
+	/***************************************/
+	//PASSING TEMPLATE FUNCTION VIA LAMBDA; DONT NEED TO PASS IN DATATYPE OF LIST
+	/***************************************/
+
+	for (int i = 0; i < NUMTHREADS; i++){
+		threadArr[i] = std::thread{
+			[&](){
+				printme(vec);
+			}
+		};
+	}
+
+
+	for (int i =0; i < NUMTHREADS; i++){
+		threadArr[i].join();
+	}
 	return 0;
 }
