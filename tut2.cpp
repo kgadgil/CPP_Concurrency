@@ -11,7 +11,7 @@ int main (int argc, char* argv[]){
 	int NUMTHREADS = std::stoi(argv[1]);
 	std::cout << "num threads " << NUMTHREADS << std::endl;
 
-	//std::thread threadArr[NUMTHREADS];
+	std::thread threadArr[NUMTHREADS];
 
 	/***************************************/
 	//LAMBDA FUNC TO PRINT THREADID OF ARRAY OF THREADS 
@@ -24,13 +24,11 @@ int main (int argc, char* argv[]){
 		};
 	}*/
 
-	std::thread t1 {threadFunc<int>};
-	std::thread t2 {threadFunc<float>};
+	threadArr[0] = std::thread {threadFunc<int>};
+	threadArr[1] = std::thread {threadFunc<float>};
 
-	t1.join();
-	t2.join();
-	/*for (int i =0; i < NUMTHREADS; i++){
+	for (int i =0; i < NUMTHREADS; i++){
 		threadArr[i].join();
-	}*/
+	}
 	return 0;
 }
