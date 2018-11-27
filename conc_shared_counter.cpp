@@ -1,3 +1,7 @@
+/*
+Code from https://baptiste-wicht.com/posts/2012/04/c11-concurrency-tutorial-advanced-locking-and-condition-variables.html
+*/
+
 #include <iostream>
 #include <thread>
 #include <mutex>
