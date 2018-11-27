@@ -5,6 +5,7 @@ Code from https://baptiste-wicht.com/posts/2012/04/c11-concurrency-tutorial-adva
 #include <iostream>
 #include <thread>
 #include <mutex>
+#include <atomic>
 
 struct Counter {
 	int value;
@@ -37,10 +38,27 @@ struct ConcurrentCounter {
 	}
 };
 
+struct AtomicCounter {
+	std::atomic<int> value;
+
+	void increment(){
+		++value;
+	}
+
+	void decrement(){
+		--value;
+	}
+
+	int get(){
+		return value.load();
+	}
+};
+
 int main(int argc, char* argv[]){
 	int NUMTHREADS = std::stoi(argv[1]);
 	std::cout << "num threads " << NUMTHREADS << std::endl;
-	Counter counter;
+	//ConcurrentCounter counter;
+	AtomicCounter counter;
 	std::thread threadArr[NUMTHREADS];
 
 	for (int i = 0; i < NUMTHREADS; ++i)
@@ -58,7 +76,8 @@ int main(int argc, char* argv[]){
 		threadArr[i].join();
 	}
 
-	std::cout << counter.value << std::endl;
+	//std::cout << counter.counter.value << std::endl;
+	std::cout << counter.get() << std::endl;
 
 	return 0;
 }
