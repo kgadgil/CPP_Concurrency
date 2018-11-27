@@ -9,6 +9,35 @@ struct Counter {
 	void increment (){
 		++value;
 	}
+
+	void decrement (){
+		if (value == 0){
+			throw "Value less than 0";
+		}
+		--value;
+	}
+};
+
+struct ConcurrentCounter {
+	std::mutex mutex;
+	Counter counter;
+
+	void increment(){
+		mutex.lock();
+		counter.increment();
+		mutex.unlock();
+	}
+
+	void decrement(){
+		mutex.lock();
+		try{
+			counter.decrement();	
+		} catch (std::string e){
+			mutex.unlock();
+			throw e;
+		}
+		mutex.unlock();
+	}
 };
 
 int main(int argc, char* argv[]){
