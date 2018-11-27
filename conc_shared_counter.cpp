@@ -23,20 +23,13 @@ struct ConcurrentCounter {
 	Counter counter;
 
 	void increment(){
-		mutex.lock();
+		std::lock_guard<std::mutex> guard(mutex);
 		counter.increment();
-		mutex.unlock();
 	}
 
 	void decrement(){
-		mutex.lock();
-		try{
-			counter.decrement();	
-		} catch (std::string e){
-			mutex.unlock();
-			throw e;
-		}
-		mutex.unlock();
+		std::lock_guard<std::mutex> guard(mutex);
+		counter.decrement();
 	}
 };
 
