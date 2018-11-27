@@ -51,5 +51,12 @@ int main()
   TemplateClass<int> tempObj;
   std::thread t2(&TemplateClass<int>::sampleMemberFunction, std::ref(tempObj), x);
   t2.join();
+
+  TemplateClass<double> tmp;
+  std::thread t3([&]{
+    tmp.sampleMemberFunction(x);
+  });
+  t3.join();
+
 	return 0;
 }
