@@ -24,6 +24,19 @@ public:
     }
 };
 
+template<typename T>
+class TemplateClass {
+public:
+    TemplateClass()
+    {}
+    TemplateClass(const DummyClass & obj)
+    {}
+    void sampleMemberFunction(int x)
+    {
+        std::cout<<"Inside sampleMemberFunction "<<x<<std::endl;
+    }
+};
+
 int main()
 {
 	std::vector<int> vec = {1,2,3};
@@ -34,5 +47,9 @@ int main()
 	int x = 10;
 	std::thread threadObj(&DummyClass::sampleMemberFunction, &dummyObj, x);
 	threadObj.join();
+
+  TemplateClass<int> tempObj;
+  std::thread t2(&TemplateClass<int>::sampleMemberFunction, std::ref(tempObj), x);
+  t2.join();
 	return 0;
 }
