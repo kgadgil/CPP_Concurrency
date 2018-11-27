@@ -6,6 +6,8 @@ Code from https://baptiste-wicht.com/posts/2012/04/c11-concurrency-tutorial-adva
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <vector>
+#include <algorithm>
 
 struct Counter {
 	int value;
@@ -59,23 +61,33 @@ int main(int argc, char* argv[]){
 	std::cout << "num threads " << NUMTHREADS << std::endl;
 	//ConcurrentCounter counter;
 	AtomicCounter counter;
-	std::thread threadArr[NUMTHREADS];
-
+	//std::thread threadArr[NUMTHREADS];
+	std::vector<std::thread> threadVec;
 	for (int i = 0; i < NUMTHREADS; ++i)
 	{
-		threadArr[i] = std::thread{[&counter](){
-			for (int i = 0; i < 100; ++i)
+		/*threadArr[i] = std::thread{[&counter](){
+			for (int i = 0; i < 2; ++i)
 			{
 				counter.increment();
 			}
-		}};
+		}};*/
+
+		threadVec.push_back(std::thread{[&counter](){
+			for (int i = 0; i < 2; ++i)
+			{
+				counter.increment();
+			}
+		}});
 	}
 
-	for (int i = 0; i < NUMTHREADS; ++i)
+/*	for (int i = 0; i < NUMTHREADS; ++i)
 	{
 		threadArr[i].join();
-	}
+	}*/
 
+	std::for_each(threadVec.begin(),threadVec.end(), [](std::thread& th){
+		th.join();
+	});
 	//std::cout << counter.counter.value << std::endl;
 	std::cout << counter.get() << std::endl;
 
