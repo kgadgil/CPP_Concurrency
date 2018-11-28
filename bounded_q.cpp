@@ -1,3 +1,7 @@
+/*******
+Herlihy-Shavitt's Bounded Partial Queue
+******/
+
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -113,8 +117,8 @@ void consumer(int id, BoundedQ& buffer){
 	std::cout << "consumer called" << std::endl;
 	for (int i = 0; i < 10; ++i){
 		std::cout << "before deq called" << std::endl;
-		//int value = buffer.deq();
-		//std::cout << "Consumer " << id << " fetched" << value << std::endl;
+		int value = buffer.deq();
+		std::cout << "Consumer " << id << " fetched" << value << std::endl;
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
