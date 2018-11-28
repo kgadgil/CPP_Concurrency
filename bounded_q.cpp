@@ -18,7 +18,7 @@ struct BoundedQ {
 	int count;
 	int capacity;
 	std::atomic<int> size;
-	std::unique_lock<std::mutex> enqlock, deqlock;
+	std::mutex mutex;
 
 	std::condition_variable not_full;
 	std::condition_variable not_empty;
@@ -36,11 +36,11 @@ struct BoundedQ {
 	void enq(int x){
 		std::cout << "inside enq" << std::endl;
 		bool mustWakeDequeuers = false;
-		enqlock.lock();
+		std::unique_lock<std::mutex> enqlock(mutex);
 		std::cout << "enqlocked" << std::endl;
 		while(size.load() == capacity){
 			not_full.wait(
-				enqlock, [this]() noexcept {
+				enqlock, [this]() {
 					return count != capacity;
 				});
 		}
@@ -52,12 +52,9 @@ struct BoundedQ {
 		if(size.fetch_add(1, std::memory_order_acq_rel) == 0){
 			mustWakeDequeuers = true;
 		}
-		enqlock.unlock();
 
 		if (mustWakeDequeuers){
-			deqlock.lock();
-			not_empty.notify_all();
-			deqlock.unlock();
+			not_empty.notify_all();		//convar is blocking so don't need lock surrounding it
 		}
 	}
 
@@ -65,11 +62,11 @@ struct BoundedQ {
 		std::cout << "inside deq" << std::endl;
 		int result;
 		bool mustWakeEnqueuers = true;
-		deqlock.lock();
+		std::unique_lock<std::mutex> deqlock(mutex);
 		std::cout << "enqlocked" << std::endl;
 		while(size.load() == 0){
 			not_empty.wait(
-				deqlock, [this]() noexcept {
+				deqlock, [this]() {
 					return count != 0;
 				});
 		}
@@ -79,12 +76,9 @@ struct BoundedQ {
 		if (size.fetch_add(1, std::memory_order_acq_rel) == capacity){
 			mustWakeEnqueuers = true;
 		}
-		deqlock.unlock();
 
 		if(mustWakeEnqueuers){
-			enqlock.lock();
 			not_full.notify_all();
-			enqlock.unlock();
 		}
 		return result;
 	}
