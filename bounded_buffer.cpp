@@ -66,7 +66,7 @@ struct BoundedBuffer {
 };
 
 /***************************
-* Use this struct to make producer and consumer functions
+* Use BoundedBuffer struct in producer and consumer functions
 ***************************/
 
 void consumer(int id, BoundedBuffer& buffer){

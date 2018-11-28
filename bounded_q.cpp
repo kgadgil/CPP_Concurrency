@@ -34,21 +34,30 @@ struct BoundedQ {
 	}
 
 	void enq(int x){
-		std::cout << "inside enq" << std::endl;
+		//std::cout << "inside enq" << std::endl;
 		bool mustWakeDequeuers = false;
 		std::unique_lock<std::mutex> enqlock(mutex);
-		std::cout << "enqlocked" << std::endl;
+		//std::cout << "enqlocked" << std::endl;
 		while(size.load() == capacity){
 			not_full.wait(
 				enqlock, [this]() {
 					return count != capacity;
 				});
 		}
+		//std::cout << "outside enq's wait" << std::endl;
 		Node *e = new Node;
+		std::cout << "new node created" << std::endl;
 		e->value = x;
-		tail->next = tail;
-		tail = e;
-
+		std::cout << "new node given value "<< x << std::endl;
+		if(tail == NULL){
+			tail = e;
+		}
+		else{
+			tail->next = e;
+			std::cout << "node added to queue" << std::endl;
+			tail = e;
+		}
+		std::cout << "new node created, ptrs swung" << std::endl;
 		if(size.fetch_add(1, std::memory_order_acq_rel) == 0){
 			mustWakeDequeuers = true;
 		}
@@ -59,20 +68,26 @@ struct BoundedQ {
 	}
 
 	int deq(){
-		std::cout << "inside deq" << std::endl;
+		//std::cout << "inside deq" << std::endl;
 		int result;
 		bool mustWakeEnqueuers = true;
 		std::unique_lock<std::mutex> deqlock(mutex);
-		std::cout << "enqlocked" << std::endl;
+		std::cout << "deqlocked" << std::endl;
+		std::cout << "size " << size.load()<< std::endl;
 		while(size.load() == 0){
 			not_empty.wait(
 				deqlock, [this]() {
+					std::cout << "waiting "<< count << std::endl;
 					return count != 0;
 				});
 		}
+		std::cout << "outside deq's wait" << std::endl;
 		Node *tmp = head->next;
+		std::cout << "tmp node created" << std::endl;
 		result = tmp->value;
+		std::cout << "removed node's value "<< result << std::endl;
 		head = head->next;
+		std::cout << "node removed" << std::endl;
 		if (size.fetch_add(1, std::memory_order_acq_rel) == capacity){
 			mustWakeEnqueuers = true;
 		}
@@ -81,6 +96,11 @@ struct BoundedQ {
 			not_full.notify_all();
 		}
 		return result;
+	}
+
+	int sizeQ(){
+		int sz = size.load();
+		return sz;
 	}
 };
 
@@ -91,17 +111,17 @@ struct BoundedQ {
 
 void consumer(int id, BoundedQ& buffer){
 	std::cout << "consumer called" << std::endl;
-	for (int i = 0; i < 50; ++i){
+	for (int i = 0; i < 10; ++i){
 		std::cout << "before deq called" << std::endl;
-		int value = buffer.deq();
-		std::cout << "Consumer " << id << " fetched" << value << std::endl;
+		//int value = buffer.deq();
+		//std::cout << "Consumer " << id << " fetched" << value << std::endl;
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
 
 void producer(int id, BoundedQ& buffer){
 	std::cout << "producer called" << std::endl;
-	for (int i = 0; i < 75; ++i){
+	for (int i = 0; i < 5; ++i){
 		std::cout << "before enq called" << std::endl;
 		buffer.enq(i);
 		std::cout << "Produced " << id << " produced" << i << std::endl;
@@ -117,12 +137,11 @@ int main (){
 	//std::thread c3(consumer, 2, std::ref(buffer));
 	std::thread p1(producer, 0, std::ref(buffer));
 	//std::thread p2(producer, 1, std::ref(buffer));
-
 	c1.join();
 	//c2.join();
 	//c3.join();
 	p1.join();
 	//p2.join();
-
+	std::cout << "size of q "<< buffer.sizeQ() << std::endl;
 	return 0;
 }
