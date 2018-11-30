@@ -13,7 +13,7 @@ void start_op();
 void end_op();
 
 class block {
-	//block header : reture_epoch, retire_next
+	//block header : retire_epoch, retire_next
 	// Node(eg: list node)
 }
 
