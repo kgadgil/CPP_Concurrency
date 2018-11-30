@@ -19,7 +19,6 @@ public:
 
 
 struct BoundedQ {
-	int count;
 	int capacity;
 	std::atomic<int> size;
 	std::mutex mutex;
@@ -28,9 +27,11 @@ struct BoundedQ {
 	std::condition_variable not_empty;
 
 	Node *head, *tail;
-	BoundedQ (int capacity) : capacity(capacity), count(0) {
-		head = NULL;
-		tail = NULL;
+	BoundedQ (int q_capacity) : capacity(q_capacity) {
+		head = new Node;
+		tail = new Node;
+		head->value = 0;
+		tail = head;
 		size.store(0);
 	}
 
@@ -38,61 +39,40 @@ struct BoundedQ {
 	}
 
 	void enq(int x){
-		//std::cout << "inside enq" << std::endl;
 		bool mustWakeDequeuers = false;
 		std::unique_lock<std::mutex> enqlock(mutex);
-		//std::cout << "enqlocked" << std::endl;
 		while(size.load() == capacity){
-			not_full.wait(
-				enqlock, [this]() {
-					return count != capacity;
-				});
+			not_full.wait(enqlock);
 		}
-		//std::cout << "outside enq's wait" << std::endl;
 		Node *e = new Node;
-		std::cout << "new node created" << std::endl;
 		e->value = x;
-		std::cout << "new node given value "<< x << std::endl;
-		if(tail == NULL){
-			tail = e;
-		}
-		else{
-			tail->next = e;
-			std::cout << "node added to queue" << std::endl;
-			tail = e;
-		}
-		std::cout << "new node created, ptrs swung" << std::endl;
+		tail->next = e;
+		tail = e;
+		std::cout << "end size "<< size.load() << std::endl;
 		if(size.fetch_add(1, std::memory_order_acq_rel) == 0){
+			std::cout << "inend size "<< size.load() << std::endl;
 			mustWakeDequeuers = true;
 		}
 
 		if (mustWakeDequeuers){
+			std::cout << "wake deq" << mustWakeDequeuers << std::endl;
 			not_empty.notify_all();		//convar is blocking so don't need lock surrounding it
 		}
 	}
 
 	int deq(){
-		//std::cout << "inside deq" << std::endl;
-		int result;
-		bool mustWakeEnqueuers = true;
+		std::cout << "inside deq" << std::endl;
+		int result = 0;
+		bool mustWakeEnqueuers = false;
 		std::unique_lock<std::mutex> deqlock(mutex);
-		std::cout << "deqlocked" << std::endl;
-		std::cout << "size " << size.load()<< std::endl;
 		while(size.load() == 0){
-			not_empty.wait(
-				deqlock, [this]() {
-					std::cout << "waiting "<< count << std::endl;
-					return count != 0;
-				});
+			not_empty.wait(deqlock);
 		}
-		std::cout << "outside deq's wait" << std::endl;
 		Node *tmp = head->next;
-		std::cout << "tmp node created" << std::endl;
 		result = tmp->value;
-		std::cout << "removed node's value "<< result << std::endl;
+		std::cout << "removed node's value "<< tmp->value << std::endl;
 		head = head->next;
-		std::cout << "node removed" << std::endl;
-		if (size.fetch_add(1, std::memory_order_acq_rel) == capacity){
+		if (size.fetch_sub(1, std::memory_order_acq_rel) == capacity){
 			mustWakeEnqueuers = true;
 		}
 
@@ -115,25 +95,27 @@ struct BoundedQ {
 
 void consumer(int id, BoundedQ& buffer){
 	std::cout << "consumer called" << std::endl;
-	for (int i = 0; i < 10; ++i){
-		std::cout << "before deq called" << std::endl;
+	for (int i = 0; i < 5; ++i){
+		//std::cout << "before deq called" << std::endl;
 		int value = buffer.deq();
-		std::cout << "Consumer " << id << " fetched" << value << std::endl;
-		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+		std::cout << "Consumer fetched" << value << std::endl;
+		//std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
 
 void producer(int id, BoundedQ& buffer){
 	std::cout << "producer called" << std::endl;
-	for (int i = 0; i < 5; ++i){
-		std::cout << "before enq called" << std::endl;
+	for (int i = 0; i < 10; ++i){
+		//std::cout << "before enq called" << std::endl;
 		buffer.enq(i);
-		std::cout << "Produced " << id << " produced" << i << std::endl;
-		std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+		std::cout << "Produced produced" << i << std::endl;
+		//std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
 	}
 }
 
-int main (){
+int main (int argc, const char** argv){
+	//unsigned num_cpus = std::thread::hardware_concurrency();
+	//std::cout << "Launching " << num_cpus << " threads\n";
 	BoundedQ buffer(10);
 
 	std::thread c1(consumer, 0, std::ref(buffer));
