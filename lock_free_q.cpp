@@ -3,31 +3,30 @@
 #include <atomic>
 
 template<typename T>
-struct Node{
-		T value;
-		Node* next;
-		Node(const T& value) : value(value), next(nullptr){} 
-};
-	
-template<typename T> 
 class lock_free_q {
-	std::atomic<Node<T>*> head, tail;
+	struct Node{
+		std::shared_ptr<T> value;
+		Node* next;
+		Node() : next(nullptr){} 
+	};
+	
+	std::atomic<Node*> head, tail;
 public:
 	lock_free_q () {
-		Node node = new Node<T>(NULL);
-		head = new Node<T>(NULL);
-		tail = new Node<T>(NULL);
+		Node* node = new Node();
+		head = new Node();
+		tail = new Node();
 		head.store(node);
 		tail.store(node);
 	}
 
 	~lock_free_q(){
 	}
-	void enq(T value_){
-		Node<T>* newnode = new Node<T>(value_);
+	void enq(T const& value_){
+		Node* const newnode = new Node(value_);
 		while(true){
-			Node<T>* last = new Node<T>(NULL);
-			Node<T>* next = new Node<T>(NULL);
+			Node* last = new Node();
+			Node* next = new Node();
 			last = tail.load();
 			next = tail->next.load();
 			if(last == tail.load()){
@@ -47,9 +46,9 @@ public:
 
 	T deq(){
 		while(true){
-			Node<T>* first = new Node<T>(NULL);
-			Node<T>* last = new Node<T>(NULL);
-			Node<T>* next = new Node<T>(NULL);
+			Node* first = new Node();
+			Node* last = new Node();
+			Node* next = new Node();
 			first = head.load();
 			last = tail.load();
 			next = first->next;
@@ -76,7 +75,7 @@ public:
 * Use lock_free_q class in producer and consumer functions
 ***************************/
 
-void consumer(int id, lock_free_q& q){
+void consumer(int id, lock_free_q<int>& q){
 	std::cout << "consumer called" << std::endl;
 	for (int i = 0; i < 5; ++i){
 		//std::cout << "before deq called" << std::endl;
@@ -86,7 +85,7 @@ void consumer(int id, lock_free_q& q){
 	}
 }
 
-void producer(int id, lock_free_q& q){
+void producer(int id, lock_free_q<int>& q){
 	std::cout << "producer called" << std::endl;
 	for (int i = 0; i < 10; ++i){
 		//std::cout << "before enq called" << std::endl;
@@ -97,7 +96,7 @@ void producer(int id, lock_free_q& q){
 }
 
 int main (int argc, const char** argv){
-	lock_free_q q(10);
+	lock_free_q<int> q;
 
 	std::thread c1(consumer, 0, std::ref(q));
 	std::thread p1(producer, 0, std::ref(q));
