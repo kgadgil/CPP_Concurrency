@@ -61,7 +61,7 @@ struct BoundedQ {
 	}
 
 	int deq(){
-		std::cout << "inside deq" << std::endl;
+		//std::cout << "size of q "<< sizeQ() << std::endl;
 		int result = 0;
 		bool mustWakeEnqueuers = false;
 		std::unique_lock<std::mutex> deqlock(mutex);
@@ -70,7 +70,7 @@ struct BoundedQ {
 		}
 		Node *tmp = head->next;
 		result = tmp->value;
-		std::cout << "removed node's value "<< tmp->value << std::endl;
+		//std::cout << "removed node's value "<< tmp->value << std::endl;
 		head = head->next;
 		if (size.fetch_sub(1, std::memory_order_acq_rel) == capacity){
 			mustWakeEnqueuers = true;
@@ -95,39 +95,38 @@ struct BoundedQ {
 
 void consumer(int id, BoundedQ& buffer){
 	std::cout << "consumer called" << std::endl;
-	for (int i = 0; i < 5; ++i){
-		//std::cout << "before deq called" << std::endl;
+//	auto start = std::chrono::system_clock::now();
+	for (int i = 0; i < 1024; ++i){
 		int value = buffer.deq();
 		std::cout << "Consumer fetched" << value << std::endl;
-		//std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
+//	auto end = std::chrono::system_clock::now();
+//	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//	std::cout << elapsed.count() << '\n';
 }
 
 void producer(int id, BoundedQ& buffer){
 	std::cout << "producer called" << std::endl;
-	for (int i = 0; i < 10; ++i){
-		//std::cout << "before enq called" << std::endl;
+//	auto start = std::chrono::system_clock::now();
+	for (int i = 0; i < 1024; ++i){
 		buffer.enq(i);
 		std::cout << "Produced produced" << i << std::endl;
-		//std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
 	}
+//	auto end = std::chrono::system_clock::now();
+//	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//	std::cout << elapsed.count() << '\n';
 }
 
 int main (int argc, const char** argv){
-	//unsigned num_cpus = std::thread::hardware_concurrency();
-	//std::cout << "Launching " << num_cpus << " threads\n";
-	BoundedQ buffer(10);
-
-	std::thread c1(consumer, 0, std::ref(buffer));
-	//std::thread c2(consumer, 1, std::ref(buffer));
-	//std::thread c3(consumer, 2, std::ref(buffer));
+	BoundedQ buffer(1024);
+	auto start = std::chrono::system_clock::now();
 	std::thread p1(producer, 0, std::ref(buffer));
-	//std::thread p2(producer, 1, std::ref(buffer));
-	c1.join();
-	//c2.join();
-	//c3.join();
+	std::thread c1(consumer, 0, std::ref(buffer));
 	p1.join();
-	//p2.join();
+	c1.join();
+	auto end = std::chrono::system_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	std::cout << elapsed.count() << '\n';
 	std::cout << "size of q "<< buffer.sizeQ() << std::endl;
 	return 0;
 }
