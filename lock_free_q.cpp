@@ -1,74 +1,64 @@
+//Single-rpoducer single-consumer lock-free queue
+//glitch-free code needed for audio programming
+
 #include <iostream>
 #include <thread>
 #include <atomic>
 
+
 template<typename T>
 class lock_free_q {
+private:
 	struct Node{
 		std::shared_ptr<T> value;
 		Node* next;
 		Node() : next(nullptr){} 
 	};
 	
-	std::atomic<Node*> head, tail;
+	std::atomic<Node*> head;
+	std::atomic<Node*> tail;
+
+	Node* deq_head(){
+		Node* const old_head = head.load();
+		if(old_head == tail.load()){
+			return nullptr;
+		}
+		head.store(old_head->next);
+		return old_head;
+	}
+
 public:
-	lock_free_q () {
-		Node* node = new Node();
-		head = new Node();
-		tail = new Node();
-		head.store(node);
-		tail.store(node);
-	}
+	lock_free_q (): head(new Node), tail(head.load()) 
+	{}
 
+	lock_free_q(const lock_free_q& other)=delete;
+	lock_free_q& operator=(const lock_free_q& other)=delete;
+	
 	~lock_free_q(){
-	}
-	void enq(T const& value_){
-		Node* const newnode = new Node(value_);
-		while(true){
-			Node* last = new Node();
-			Node* next = new Node();
-			last = tail.load();
-			next = tail->next.load();
-			if(last == tail.load()){
-				if(next == NULL){
-					//compare weak and strong; read api ref; weak used coz used in eg in api
-					if(last->next.compare_exchange_weak(next, newnode, std::memory_order_release, std::memory_order_relaxed)){
-						tail.compare_exchange_weak(last, newnode, std::memory_order_release, std::memory_order_relaxed);
-						return;
-					}
-					else {
-						tail.compare_exchange_weak(last, next, std::memory_order_release, std::memory_order_relaxed);
-					}
-				}
-			}
+		while(Node* const old_head = head.load()){
+			head.store(old_head->next);
+			delete old_head;
 		}
 	}
 
-	T deq(){
-		while(true){
-			Node* first = new Node();
-			Node* last = new Node();
-			Node* next = new Node();
-			first = head.load();
-			last = tail.load();
-			next = first->next;
-
-			if(first == head.load()){
-				if (first == last){
-					if(next == NULL){
-						throw "Empty Exception";
-					}
-					tail.compare_exchange_weak(last, next, std::memory_order_release, std::memory_order_relaxed);
-				}else{
-					T value = next->value;
-					if(head.compare_exchange_weak(first, next, std::memory_order_release, std::memory_order_relaxed)){
-						return value;
-					}
-				}
-			}
+	std::shared_ptr<T> deq(){
+		Node* old_head = deq_head();
+		if(!old_head){
+			return std::shared_ptr<T>();
 		}
+		std::shared_ptr<T> const res(old_head->value);
+		delete old_head;
+		return res;
 	}
 
+	void enq(T new_value){
+		std::shared_ptr<T> new_data (std::make_shared<T>(new_value));
+		Node* p = new Node;
+		Node* const old_tail = tail.load();
+		old_tail->value.swap(new_data);
+		old_tail->next = p;
+		tail.store(p);
+	}
 };
 
 /***************************
@@ -79,7 +69,7 @@ void consumer(int id, lock_free_q<int>& q){
 	std::cout << "consumer called" << std::endl;
 	for (int i = 0; i < 5; ++i){
 		//std::cout << "before deq called" << std::endl;
-		int value = q.deq();
+		std::shared_ptr<int> value = q.deq();
 		std::cout << "Consumer fetched" << value << std::endl;
 		//std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
