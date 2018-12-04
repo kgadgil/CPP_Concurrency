@@ -226,9 +226,9 @@ void producer(circular_file& buffer, int size){
 //	std::cout << elapsed.count() << '\n';
 }
 
-int main (){
+int main (int argc, const char** argv){
+  static const int BUFFER_SIZE = std::stoi(argv[1]);;
 	static const char *test_file = "circular_file.data";
-	static const int BUFFER_SIZE = 1024;
 	circular_file *buffer;
 	buffer = new circular_file(test_file, true, BUFFER_SIZE*sizeof(int));
 	auto start = std::chrono::system_clock::now();

@@ -93,10 +93,10 @@ struct BoundedQ {
 * Use BoundedQ class in producer and consumer functions
 ***************************/
 
-void consumer(int id, BoundedQ& buffer){
+void consumer(BoundedQ& buffer, int size){
 	std::cout << "consumer called" << std::endl;
 //	auto start = std::chrono::system_clock::now();
-	for (int i = 0; i < 1024; ++i){
+	for (int i = 0; i < size; ++i){
 		int value = buffer.deq();
 		std::cout << "Consumer fetched" << value << std::endl;
 	}
@@ -105,10 +105,10 @@ void consumer(int id, BoundedQ& buffer){
 //	std::cout << elapsed.count() << '\n';
 }
 
-void producer(int id, BoundedQ& buffer){
+void producer(BoundedQ& buffer, int size){
 	std::cout << "producer called" << std::endl;
 //	auto start = std::chrono::system_clock::now();
-	for (int i = 0; i < 1024; ++i){
+	for (int i = 0; i < size; ++i){
 		buffer.enq(i);
 		std::cout << "Produced produced" << i << std::endl;
 	}
@@ -118,10 +118,11 @@ void producer(int id, BoundedQ& buffer){
 }
 
 int main (int argc, const char** argv){
-	BoundedQ buffer(1024);
+	static const int BUFFER_SIZE = std::stoi(argv[1]);
+	BoundedQ buffer(BUFFER_SIZE*sizeof(int));
 	auto start = std::chrono::system_clock::now();
-	std::thread p1(producer, 0, std::ref(buffer));
-	std::thread c1(consumer, 0, std::ref(buffer));
+	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE);
+	std::thread c1(consumer, std::ref(buffer), BUFFER_SIZE);
 	p1.join();
 	c1.join();
 	auto end = std::chrono::system_clock::now();
