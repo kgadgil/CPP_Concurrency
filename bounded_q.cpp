@@ -10,6 +10,7 @@ Herlihy-Shavitt's Bounded Partial Queue
 #include <algorithm>
 #include <condition_variable>
 #include <chrono>
+#include <string>
 
 struct Node {
 public:
@@ -21,8 +22,7 @@ public:
 struct BoundedQ {
 	int capacity;
 	std::atomic<int> size;
-	std::mutex m_enq;
-	std::mutex m_deq;
+	std::mutex mutex;
 
 	std::condition_variable not_full;
 	std::condition_variable not_empty;
@@ -41,8 +41,10 @@ struct BoundedQ {
 
 	void enq(int x){
 		bool mustWakeDequeuers = false;
-		std::unique_lock<std::mutex> enqlock(m_enq);
+		std::unique_lock<std::mutex> enqlock(mutex);
+		std::cout << "enqlock acquired" << std::endl;
 		while(size.load() == capacity){
+			std::cout << "waiting for not_full" << std::endl;
 			not_full.wait(enqlock);
 		}
 		Node *e = new Node;
@@ -55,8 +57,10 @@ struct BoundedQ {
 			mustWakeDequeuers = true;
 		}
 		enqlock.unlock();
+		std::cout << "enq unlock" << std::endl;
 		if (mustWakeDequeuers){
-			std::lock_guard<std::mutex> lk(m_deq);
+			std::lock_guard<std::mutex> lk(mutex);
+			std::cout << "lock acq; update not_empty" << std::endl;
 			not_empty.notify_all();		//convar is blocking so don't need lock surrounding it
 		}
 	}
@@ -65,8 +69,10 @@ struct BoundedQ {
 		//std::cout << "size of q "<< sizeQ() << std::endl;
 		int result = 0;
 		bool mustWakeEnqueuers = false;
-		std::unique_lock<std::mutex> deqlock(m_deq);
+		std::unique_lock<std::mutex> deqlock(mutex);
+		std::cout << "deqlock acquired" << std::endl;
 		while(size.load() == 0){
+			std::cout << "waiting for not_empty" << std::endl;
 			not_empty.wait(deqlock);
 		}
 		Node *tmp = head->next;
@@ -77,9 +83,10 @@ struct BoundedQ {
 			mustWakeEnqueuers = true;
 		}
 		deqlock.unlock();
-
+		std::cout << "deq unlock" << std::endl;
 		if(mustWakeEnqueuers){
-			std::lock_guard<std::mutex> lk(m_enq);
+			std::lock_guard<std::mutex> lk(mutex);
+			std::cout << "lock acq; update not_full" << std::endl;
 			not_full.notify_all();
 		}
 		return result;
@@ -120,8 +127,21 @@ void producer(BoundedQ& buffer, int size){
 //	std::cout << elapsed.count() << '\n';
 }
 
-int main (int argc, const char** argv){
-	static const int BUFFER_SIZE = std::stoi(argv[1]);
+int main (int argc, char* argv[]){
+	std::string arg = argv[1];
+	try {
+		std::size_t pos;
+		int x = std::stoi(arg, &pos);
+		if (pos < arg.size()) {
+			std::cerr << "Trailing characters after number: " << arg << '\n';
+		}
+	} catch (std::invalid_argument const &ex) {
+		std::cerr << "Invalid number: " << arg << '\n';
+	} catch (std::out_of_range const &ex) {
+		std::cerr << "Number out of range: " << arg << '\n';
+	}
+
+	int BUFFER_SIZE = std::stoi(argv[1]);
 	BoundedQ buffer(BUFFER_SIZE*sizeof(int));
 	auto start = std::chrono::system_clock::now();
 	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE);
