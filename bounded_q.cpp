@@ -21,7 +21,8 @@ public:
 struct BoundedQ {
 	int capacity;
 	std::atomic<int> size;
-	std::mutex mutex;
+	std::mutex m_enq;
+	std::mutex m_deq;
 
 	std::condition_variable not_full;
 	std::condition_variable not_empty;
@@ -40,7 +41,7 @@ struct BoundedQ {
 
 	void enq(int x){
 		bool mustWakeDequeuers = false;
-		std::unique_lock<std::mutex> enqlock(mutex);
+		std::unique_lock<std::mutex> enqlock(m_enq);
 		while(size.load() == capacity){
 			not_full.wait(enqlock);
 		}
@@ -55,7 +56,7 @@ struct BoundedQ {
 		}
 		enqlock.unlock();
 		if (mustWakeDequeuers){
-			std::lock_guard<std::mutex> lk(mutex);
+			std::lock_guard<std::mutex> lk(m_deq);
 			not_empty.notify_all();		//convar is blocking so don't need lock surrounding it
 		}
 	}
@@ -64,7 +65,7 @@ struct BoundedQ {
 		//std::cout << "size of q "<< sizeQ() << std::endl;
 		int result = 0;
 		bool mustWakeEnqueuers = false;
-		std::unique_lock<std::mutex> deqlock(mutex);
+		std::unique_lock<std::mutex> deqlock(m_deq);
 		while(size.load() == 0){
 			not_empty.wait(deqlock);
 		}
@@ -78,7 +79,7 @@ struct BoundedQ {
 		deqlock.unlock();
 
 		if(mustWakeEnqueuers){
-			std::lock_guard<std::mutex> lk(mutex);
+			std::lock_guard<std::mutex> lk(m_enq);
 			not_full.notify_all();
 		}
 		return result;
