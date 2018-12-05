@@ -48,14 +48,14 @@ struct BoundedQ {
 		e->value = x;
 		tail->next = e;
 		tail = e;
-		std::cout << "end size "<< size.load() << std::endl;
+		//std::cout << "end size "<< size.load() << std::endl;
 		if(size.fetch_add(1, std::memory_order_acq_rel) == 0){
-			std::cout << "inend size "<< size.load() << std::endl;
+			//std::cout << "inend size "<< size.load() << std::endl;
 			mustWakeDequeuers = true;
 		}
-
+		enqlock.unlock();
 		if (mustWakeDequeuers){
-			std::cout << "wake deq" << mustWakeDequeuers << std::endl;
+			std::lock_guard<std::mutex> lk(mutex);
 			not_empty.notify_all();		//convar is blocking so don't need lock surrounding it
 		}
 	}
@@ -75,8 +75,10 @@ struct BoundedQ {
 		if (size.fetch_sub(1, std::memory_order_acq_rel) == capacity){
 			mustWakeEnqueuers = true;
 		}
+		deqlock.unlock();
 
 		if(mustWakeEnqueuers){
+			std::lock_guard<std::mutex> lk(mutex);
 			not_full.notify_all();
 		}
 		return result;

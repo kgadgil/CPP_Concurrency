@@ -17,6 +17,7 @@ private:
 	
 	std::atomic<Node*> head;
 	std::atomic<Node*> tail;
+	tail.store(head);
 
 	Node* deq_head(){
 		Node* const old_head = head.load();
@@ -43,7 +44,7 @@ public:
 
 	std::shared_ptr<T> deq(){
 		Node* old_head = deq_head();
-		if(!old_head){
+		if(!old_head){		//nullptr is convertible to bool true
 			return std::shared_ptr<T>();
 		}
 		std::shared_ptr<T> const res(old_head->value);
