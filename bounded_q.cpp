@@ -37,14 +37,21 @@ struct BoundedQ {
 	}
 
 	~BoundedQ(){
+		Node * temp;
+		while(head != NULL){
+			temp = head;
+			head = head->next;
+			delete temp;
+		}
+		tail = NULL;
 	}
 
 	void enq(int x){
 		bool mustWakeDequeuers = false;
 		std::unique_lock<std::mutex> enqlock(mutex);
-		std::cout << "enqlock acquired" << std::endl;
+		//std::cout << "enqlock acquired" << std::endl;
 		while(size.load() == capacity){
-			std::cout << "waiting for not_full" << std::endl;
+			//std::cout << "waiting for not_full" << std::endl;
 			not_full.wait(enqlock);
 		}
 		Node *e = new Node;
@@ -57,10 +64,10 @@ struct BoundedQ {
 			mustWakeDequeuers = true;
 		}
 		enqlock.unlock();
-		std::cout << "enq unlock" << std::endl;
+		//std::cout << "enq unlock" << std::endl;
 		if (mustWakeDequeuers){
 			std::lock_guard<std::mutex> lk(mutex);
-			std::cout << "lock acq; update not_empty" << std::endl;
+			//std::cout << "lock acq; update not_empty" << std::endl;
 			not_empty.notify_all();		//convar is blocking so don't need lock surrounding it
 		}
 	}
@@ -70,9 +77,9 @@ struct BoundedQ {
 		int result = 0;
 		bool mustWakeEnqueuers = false;
 		std::unique_lock<std::mutex> deqlock(mutex);
-		std::cout << "deqlock acquired" << std::endl;
+		//std::cout << "deqlock acquired" << std::endl;
 		while(size.load() == 0){
-			std::cout << "waiting for not_empty" << std::endl;
+			//std::cout << "waiting for not_empty" << std::endl;
 			not_empty.wait(deqlock);
 		}
 		Node *tmp = head->next;
@@ -83,10 +90,10 @@ struct BoundedQ {
 			mustWakeEnqueuers = true;
 		}
 		deqlock.unlock();
-		std::cout << "deq unlock" << std::endl;
+		//std::cout << "deq unlock" << std::endl;
 		if(mustWakeEnqueuers){
 			std::lock_guard<std::mutex> lk(mutex);
-			std::cout << "lock acq; update not_full" << std::endl;
+			//std::cout << "lock acq; update not_full" << std::endl;
 			not_full.notify_all();
 		}
 		return result;
@@ -119,6 +126,7 @@ void producer(BoundedQ& buffer, int size){
 	std::cout << "producer called" << std::endl;
 //	auto start = std::chrono::system_clock::now();
 	for (int i = 0; i < size; ++i){
+		//std::this_thread::sleep_for(std::chrono::seconds(1));
 		buffer.enq(i);
 		std::cout << "Produced produced" << i << std::endl;
 	}
@@ -128,26 +136,13 @@ void producer(BoundedQ& buffer, int size){
 }
 
 int main (int argc, char* argv[]){
-	std::string arg = argv[1];
-	try {
-		std::size_t pos;
-		int x = std::stoi(arg, &pos);
-		if (pos < arg.size()) {
-			std::cerr << "Trailing characters after number: " << arg << '\n';
-		}
-	} catch (std::invalid_argument const &ex) {
-		std::cerr << "Invalid number: " << arg << '\n';
-	} catch (std::out_of_range const &ex) {
-		std::cerr << "Number out of range: " << arg << '\n';
-	}
-
 	int BUFFER_SIZE = std::stoi(argv[1]);
 	BoundedQ buffer(BUFFER_SIZE*sizeof(int));
 	auto start = std::chrono::system_clock::now();
 	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE);
 	std::thread c1(consumer, std::ref(buffer), BUFFER_SIZE);
-	p1.join();
 	c1.join();
+	p1.join();
 	auto end = std::chrono::system_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	std::cout << elapsed.count() << '\n';
