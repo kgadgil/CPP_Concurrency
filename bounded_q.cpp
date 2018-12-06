@@ -112,19 +112,20 @@ struct BoundedQ {
 * Use BoundedQ class in producer and consumer functions
 ***************************/
 
-void consumer(BoundedQ& buffer, int size, std::future<void>&& fut){
+void consumer(BoundedQ& buffer, int ncons_items, std::future<void>&& fut, int delay){
 	fut.wait();
-	for (int i = 0; i < size; ++i){
+	for (int i = 0; i < ncons_items; ++i){
+		std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
 		int value = buffer.deq();
 	}
 }
 
-void producer(BoundedQ& buffer, int size, std::promise<void>&& prom){
-	for (int i = 0; i < size; ++i){
-		//std::this_thread::sleep_for(std::chrono::seconds(1));
+void producer(BoundedQ& buffer, int nprod_items, std::promise<void>&& prom, int delay){
+	for (int i = 0; i < nprod_items; ++i){
 		double r = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
+		std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
 		buffer.enq(r);
-		if (i == 2){
+		if (i == (nprod_items/2)){
 			std::cout << "producer wrote 2 items" << std::endl;
 			prom.set_value();
 		}
@@ -133,13 +134,17 @@ void producer(BoundedQ& buffer, int size, std::promise<void>&& prom){
 
 int main (int argc, char* argv[]){
 	int BUFFER_SIZE = std::stoi(argv[1]);
-	BoundedQ buffer(BUFFER_SIZE*sizeof(double));
+	int PROD_DELAY = std::stoi(argv[2]);
+	int CONSUME_DELAY = std::stoi(argv[3]);
+	int buffer_capacity = BUFFER_SIZE*sizeof(double);
+
+	BoundedQ buffer(buffer_capacity);
 	std::promise<void> data_ready;
-  	auto fut = data_ready.get_future();
+	auto fut = data_ready.get_future();
 
 	auto start = std::chrono::system_clock::now();
-	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE*1000, std::move(data_ready));
-	std::thread c1(consumer, std::ref(buffer), BUFFER_SIZE*1000, std::move(fut));
+	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE, std::move(data_ready), PROD_DELAY);
+	std::thread c1(consumer, std::ref(buffer), BUFFER_SIZE, std::move(fut), CONSUME_DELAY);
 	c1.join();
 	p1.join();
 	auto end = std::chrono::system_clock::now();

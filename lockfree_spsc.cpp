@@ -66,37 +66,35 @@ public:
 * Use lock_free_q class in producer and consumer functions
 ***************************/
 
-void consumer(lock_free_q<double>& q, int size, std::future<void>&& fut){
+void consumer(lock_free_q<double>& q, int ncons_items, std::future<void>&& fut){
 	fut.wait();
-	for (int i = 0; i < size; ++i){
+	for (int i = 0; i < ncons_items; ++i){
 		std::shared_ptr<double> value = q.deq();
-		//std::cout << "Consumer fetched" << value << std::endl;
-		//std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
 
-void producer(lock_free_q<double>& q, int size, std::promise<void>&& prom){
-	for (int i = 0; i < size; ++i){
+void producer(lock_free_q<double>& q, int nprod_items, std::promise<void>&& prom, int buffer_capacity){
+	for (int i = 0; i < nprod_items; ++i){
 		double r = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
 		q.enq(r);
-		if (i == 2){
-			std::cout << "producer wrote 2 items" << std::endl;
+		if (i == (nprod_items/2)){
 			prom.set_value();
 		}
-		//std::cout << "Produced produced" << i << std::endl;
-		//std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
 	}
 }
 
 int main (int argc, const char** argv){
-	static const int BUFFER_SIZE = std::stoi(argv[1]);;
+	static const int BUFFER_SIZE = std::stoi(argv[1]);
+	static const int PROD_DELAY = std::stoi(argv[2]);
+	static const int CONSUME_DELAY = std::stoi(argv[3]);
+	int buffer_capacity = BUFFER_SIZE*sizeof(double);
 	lock_free_q<double> q;
 	std::promise<void> data_ready;
 	auto fut = data_ready.get_future();
 
 	auto start = std::chrono::system_clock::now();
-	std::thread p1(producer, std::ref(q), BUFFER_SIZE*1000, std::move(data_ready));
-	std::thread c1(consumer, std::ref(q), BUFFER_SIZE,std::move(fut));
+	std::thread p1(producer, std::ref(q), BUFFER_SIZE, std::move(data_ready));
+	std::thread c1(consumer, std::ref(q), BUFFER_SIZE, std::move(fut));
 	p1.join();
 	c1.join();
 	auto end = std::chrono::system_clock::now();
