@@ -6,6 +6,8 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <future>
+#include <utility>
 
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -60,14 +62,14 @@ public:
 #ifdef HAVE_MMAP
   		mm_prot = PROT_READ | PROT_WRITE;
 #endif
-  		std::cout << "filename " << filename << std::endl;
+  		//std::cout << "filename " << filename << std::endl;
   		d_fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, 0664);
   		if(d_fd < 0) {
   			perror(filename);
   			exit(1);
   		}
 #ifdef HAVE_MMAP	/* FIXME */
-  		std::cout << "file size truncated " << (size+HEADER_SIZE) << std::endl;
+  		//std::cout << "file size truncated " << (size+HEADER_SIZE) << std::endl;
   		if(ftruncate(d_fd, size + HEADER_SIZE) != 0) {
   			perror(filename);
   			exit(1);
@@ -122,30 +124,30 @@ public:
     	d_header[HD_BUFFER_SIZE] = size;
       d_header[HD_BUFFER_BASE] = HEADER_SIZE;    // right after header
       d_header[HD_BUFFER_CURRENT] = 0;
-  }
+    }
 
     // sanity check (the asserts are a bit unforgiving...)
 
-  assert(d_header[HD_MAGIC] == HEADER_MAGIC);
-  assert(d_header[HD_HEADER_SIZE] == HEADER_SIZE);
-  assert(d_header[HD_BUFFER_SIZE] > 0);
-  assert(d_header[HD_BUFFER_BASE] >= d_header[HD_HEADER_SIZE]);
-  assert(d_header[HD_BUFFER_BASE] + d_header[HD_BUFFER_SIZE] <= d_mapped_size);
-  assert(d_header[HD_BUFFER_CURRENT] >= 0 &&
-  	d_header[HD_BUFFER_CURRENT] < d_header[HD_BUFFER_SIZE]);
+    assert(d_header[HD_MAGIC] == HEADER_MAGIC);
+    assert(d_header[HD_HEADER_SIZE] == HEADER_SIZE);
+    assert(d_header[HD_BUFFER_SIZE] > 0);
+    assert(d_header[HD_BUFFER_BASE] >= d_header[HD_HEADER_SIZE]);
+    assert(d_header[HD_BUFFER_BASE] + d_header[HD_BUFFER_SIZE] <= d_mapped_size);
+    assert(d_header[HD_BUFFER_CURRENT] >= 0 &&
+     d_header[HD_BUFFER_CURRENT] < d_header[HD_BUFFER_SIZE]);
 
-  d_bytes_read = 0;
-  d_buffer = (unsigned char*)d_header + d_header[HD_BUFFER_BASE];
-}
-~circular_file()
-{
+    d_bytes_read = 0;
+    d_buffer = (unsigned char*)d_header + d_header[HD_BUFFER_BASE];
+  }
+  ~circular_file()
+  {
 #ifdef HAVE_MMAP
-	if(munmap ((char *) d_header, d_mapped_size) < 0) {
-		perror("gr::circular_file: munmap");
-		exit(1);
-	}
+   if(munmap ((char *) d_header, d_mapped_size) < 0) {
+    perror("gr::circular_file: munmap");
+    exit(1);
+  }
 #endif
-	close(d_fd);
+  close(d_fd);
 }
 bool write(void *vdata, int nbytes)
 {
@@ -156,7 +158,6 @@ bool write(void *vdata, int nbytes)
 	while(nbytes > 0) {
 		int n = std::min(nbytes, buffer_size - buffer_current);
 		memcpy(d_buffer + buffer_current, data, n);
-
 		buffer_current += n;
 		if(buffer_current >= buffer_size)
 			buffer_current = 0;
@@ -178,7 +179,7 @@ int read(void *vdata, int nbytes)
 	int total = 0;
 
 	nbytes = std::min(nbytes, buffer_size - d_bytes_read);
-
+  //std::cout << "size of data requested " << nbytes << std::endl;
 	while(nbytes > 0) {
 		int offset = (buffer_current + d_bytes_read) % buffer_size;
 		int n = std::min (nbytes, buffer_size - offset);
@@ -198,50 +199,49 @@ void reset_read_pointer()
 };
 
 
-
-
-void consumer(circular_file& buffer, int size){
-	std::cout << "consumer called" << std::endl;
-//	auto start = std::chrono::system_clock::now();
-	for (int i = 0; i < size; ++i){
-		int data;
-		int value = buffer.read(&data, sizeof(data));
-		std::cout << "Consumer fetched" << value << std::endl;
-	}
-//	auto end = std::chrono::system_clock::now();
-//	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-//	std::cout << elapsed.count() << '\n';
+void consumer(circular_file& buffer, int ncons_items, std::future<void>&& fut, int delay){
+  fut.wait();
+  for (int i = 0; i < ncons_items; i++){
+    double data;
+    std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
+    int value = buffer.read(&data, sizeof(data));
+  }
 }
 
-void producer(circular_file& buffer, int size){
-	std::cout << "producer called" << std::endl;
-//	auto start = std::chrono::system_clock::now();
-	for (int i = 0; i <size; ++i){
-		int data = i;
+void producer(circular_file& buffer, int nprod_items, std::promise<void>&& prom, int delay){
+	for (int i = 0; i < nprod_items; i++){
+		double data = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
+    std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
 		buffer.write(&data, sizeof(data));
-		std::cout << "Produced produced" << i << std::endl;
-	}
-//	auto end = std::chrono::system_clock::now();
-//	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-//	std::cout << elapsed.count() << '\n';
+    if (i == ((nprod_items*3)/4)){
+      prom.set_value();
+    }
+  }
 }
 
 int main (int argc, const char** argv){
-  static const int BUFFER_SIZE = std::stoi(argv[1]);;
-	static const char *test_file = "circular_file.data";
-	circular_file *buffer;
-	buffer = new circular_file(test_file, true, BUFFER_SIZE*sizeof(int));
-	auto start = std::chrono::system_clock::now();
-	std::thread p1([&]{
-		producer(*buffer, BUFFER_SIZE);
-	});
-	std::thread c1([&]{
-		consumer(*buffer, BUFFER_SIZE);
-	});
-	p1.join();
-	c1.join();
-	auto end = std::chrono::system_clock::now();
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-	std::cout << elapsed.count() << '\n';
-	return 0;
+  static const int BUFFER_SIZE = std::stoi(argv[1]);
+  static const int PROD_DELAY = std::stoi(argv[2]);
+  static const int CONSUME_DELAY = std::stoi(argv[3]);
+  int buffer_capacity = BUFFER_SIZE*sizeof(double);
+
+  static const char *test_file = "circular_file.data";
+  circular_file *buffer;
+  buffer = new circular_file(test_file, true, buffer_capacity);
+
+  std::promise<void> data_ready;
+  auto fut = data_ready.get_future();
+  auto start = std::chrono::system_clock::now();
+  std::thread p1([&]{
+    producer(*buffer, BUFFER_SIZE, std::move(data_ready), PROD_DELAY);
+  });
+  std::thread c1([&]{
+    consumer(*buffer, BUFFER_SIZE, std::move(fut), CONSUME_DELAY);
+  });
+  p1.join();
+  c1.join();
+  auto end = std::chrono::system_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  std::cout << elapsed.count() << '\n';
+  return 0;
 }

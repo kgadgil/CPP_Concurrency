@@ -125,8 +125,7 @@ void producer(BoundedQ& buffer, int nprod_items, std::promise<void>&& prom, int 
 		double r = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
 		std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
 		buffer.enq(r);
-		if (i == (nprod_items/2)){
-			std::cout << "producer wrote 2 items" << std::endl;
+		if (i == ((nprod_items*3)/4)){
 			prom.set_value();
 		}
 	}
@@ -150,6 +149,6 @@ int main (int argc, char* argv[]){
 	auto end = std::chrono::system_clock::now();
 	auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 	std::cout << elapsed.count() << '\n';
-	std::cout << "size of q "<< buffer.sizeQ() << std::endl;
+	//std::cout << "size of q "<< buffer.sizeQ() << std::endl;
 	return 0;
 }

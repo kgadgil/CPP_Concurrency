@@ -66,18 +66,20 @@ public:
 * Use lock_free_q class in producer and consumer functions
 ***************************/
 
-void consumer(lock_free_q<double>& q, int ncons_items, std::future<void>&& fut){
+void consumer(lock_free_q<double>& q, int ncons_items, std::future<void>&& fut, int delay){
 	fut.wait();
 	for (int i = 0; i < ncons_items; ++i){
+		std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
 		std::shared_ptr<double> value = q.deq();
 	}
 }
 
-void producer(lock_free_q<double>& q, int nprod_items, std::promise<void>&& prom, int buffer_capacity){
+void producer(lock_free_q<double>& q, int nprod_items, std::promise<void>&& prom, int delay){
 	for (int i = 0; i < nprod_items; ++i){
 		double r = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
+		std::this_thread::sleep_for(std::chrono::nanoseconds(delay));
 		q.enq(r);
-		if (i == (nprod_items/2)){
+		if (i == ((nprod_items*3)/4)){
 			prom.set_value();
 		}
 	}
@@ -93,8 +95,8 @@ int main (int argc, const char** argv){
 	auto fut = data_ready.get_future();
 
 	auto start = std::chrono::system_clock::now();
-	std::thread p1(producer, std::ref(q), BUFFER_SIZE, std::move(data_ready));
-	std::thread c1(consumer, std::ref(q), BUFFER_SIZE, std::move(fut));
+	std::thread p1(producer, std::ref(q), BUFFER_SIZE, std::move(data_ready), PROD_DELAY);
+	std::thread c1(consumer, std::ref(q), BUFFER_SIZE, std::move(fut), CONSUME_DELAY);
 	p1.join();
 	c1.join();
 	auto end = std::chrono::system_clock::now();
