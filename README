@@ -1,0 +1,3 @@
+Makefile used to compile and run one implementation at a time.
+Uncomment the Sources line to select one of three implementations.
+make clean to remove executables. 

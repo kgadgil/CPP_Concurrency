@@ -124,7 +124,38 @@ public:
 	}
 };
 
-int main (){
-	std::cout << "hello world "<< std::endl;
+/***************************
+* Use lock_free_queue class in producer and consumer functions
+***************************/
+
+void consumer(lock_free_queue<int>& q, int size){
+	for (int i = 0; i < size; ++i){
+		//std::cout << "before deq called" << std::endl;
+		std::shared_ptr<int> value = q.pop();
+		std::cout << "Consumer fetched" << value << std::endl;
+		//std::this_thread::sleep_for(std::chrono::milliseconds(250));
+	}
+}
+
+void producer(lock_free_queue<int>& q, int size){
+	for (int i = 0; i < size; ++i){
+		//std::cout << "before enq called" << std::endl;
+		q.push(i);
+		//std::cout << "Produced produced" << i << std::endl;
+		//std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+	}
+}
+
+int main (int argc, const char** argv){
+	static const int BUFFER_SIZE = std::stoi(argv[1]);;
+	lock_free_queue<int> q;
+	auto start = std::chrono::system_clock::now();
+	std::thread c1(consumer, std::ref(q), BUFFER_SIZE);
+	std::thread p1(producer, std::ref(q), BUFFER_SIZE);
+	c1.join();
+	p1.join();
+	auto end = std::chrono::system_clock::now();
+	auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+	std::cout << elapsed.count() << '\n';
 	return 0;
 }
