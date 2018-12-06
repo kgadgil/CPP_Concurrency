@@ -11,10 +11,11 @@ Herlihy-Shavitt's Bounded Partial Queue
 #include <condition_variable>
 #include <chrono>
 #include <string>
+#include <future>
 
 struct Node {
 public:
-	int value;
+	double value;
 	Node *next;
 };
 
@@ -34,19 +35,20 @@ struct BoundedQ {
 		head->value = 0;
 		tail = head;
 		size.store(0);
+		//std::cout << "constructor called" << std::endl;
 	}
 
+	BoundedQ(const BoundedQ& other)=delete;
+	BoundedQ& operator = (const BoundedQ& other) = delete;	
 	~BoundedQ(){
-		Node * temp;
-		while(head != NULL){
-			temp = head;
-			head = head->next;
-			delete temp;
+		while(Node* const tmp = head){
+			head = tmp->next;
+			delete tmp;
 		}
-		tail = NULL;
+		//std::cout << "destructor called" << std::endl;
 	}
 
-	void enq(int x){
+	void enq(double x){
 		bool mustWakeDequeuers = false;
 		std::unique_lock<std::mutex> enqlock(mutex);
 		//std::cout << "enqlock acquired" << std::endl;
@@ -74,7 +76,7 @@ struct BoundedQ {
 
 	int deq(){
 		//std::cout << "size of q "<< sizeQ() << std::endl;
-		int result = 0;
+		double result = 0;
 		bool mustWakeEnqueuers = false;
 		std::unique_lock<std::mutex> deqlock(mutex);
 		//std::cout << "deqlock acquired" << std::endl;
@@ -110,41 +112,38 @@ struct BoundedQ {
 * Use BoundedQ class in producer and consumer functions
 ***************************/
 
-void consumer(BoundedQ& buffer, int size){
-	std::cout << "consumer called" << std::endl;
-//	auto start = std::chrono::system_clock::now();
+void consumer(BoundedQ& buffer, int size, std::future<void>&& fut){
+	fut.wait();
 	for (int i = 0; i < size; ++i){
 		int value = buffer.deq();
-		std::cout << "Consumer fetched" << value << std::endl;
 	}
-//	auto end = std::chrono::system_clock::now();
-//	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-//	std::cout << elapsed.count() << '\n';
 }
 
-void producer(BoundedQ& buffer, int size){
-	std::cout << "producer called" << std::endl;
-//	auto start = std::chrono::system_clock::now();
+void producer(BoundedQ& buffer, int size, std::promise<void>&& prom){
 	for (int i = 0; i < size; ++i){
 		//std::this_thread::sleep_for(std::chrono::seconds(1));
-		buffer.enq(i);
-		std::cout << "Produced produced" << i << std::endl;
+		double r = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
+		buffer.enq(r);
+		if (i == 2){
+			std::cout << "producer wrote 2 items" << std::endl;
+			prom.set_value();
+		}
 	}
-//	auto end = std::chrono::system_clock::now();
-//	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-//	std::cout << elapsed.count() << '\n';
 }
 
 int main (int argc, char* argv[]){
 	int BUFFER_SIZE = std::stoi(argv[1]);
-	BoundedQ buffer(BUFFER_SIZE*sizeof(int));
+	BoundedQ buffer(BUFFER_SIZE*sizeof(double));
+	std::promise<void> data_ready;
+  	auto fut = data_ready.get_future();
+
 	auto start = std::chrono::system_clock::now();
-	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE);
-	std::thread c1(consumer, std::ref(buffer), BUFFER_SIZE);
+	std::thread p1(producer, std::ref(buffer), BUFFER_SIZE*1000, std::move(data_ready));
+	std::thread c1(consumer, std::ref(buffer), BUFFER_SIZE*1000, std::move(fut));
 	c1.join();
 	p1.join();
 	auto end = std::chrono::system_clock::now();
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 	std::cout << elapsed.count() << '\n';
 	std::cout << "size of q "<< buffer.sizeQ() << std::endl;
 	return 0;

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include <atomic>
+#include <future>
 
 
 template<typename T>
@@ -17,7 +18,6 @@ private:
 	
 	std::atomic<Node*> head;
 	std::atomic<Node*> tail;
-	tail.store(head);
 
 	Node* deq_head(){
 		Node* const old_head = head.load();
@@ -66,36 +66,41 @@ public:
 * Use lock_free_q class in producer and consumer functions
 ***************************/
 
-void consumer(lock_free_q<int>& q, int size){
-	std::cout << "consumer called" << std::endl;
+void consumer(lock_free_q<double>& q, int size, std::future<void>&& fut){
+	fut.wait();
 	for (int i = 0; i < size; ++i){
-		//std::cout << "before deq called" << std::endl;
-		std::shared_ptr<int> value = q.deq();
-		std::cout << "Consumer fetched" << value << std::endl;
+		std::shared_ptr<double> value = q.deq();
+		//std::cout << "Consumer fetched" << value << std::endl;
 		//std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
 
-void producer(lock_free_q<int>& q, int size){
-	std::cout << "producer called" << std::endl;
+void producer(lock_free_q<double>& q, int size, std::promise<void>&& prom){
 	for (int i = 0; i < size; ++i){
-		//std::cout << "before enq called" << std::endl;
-		q.enq(i);
-		std::cout << "Produced produced" << i << std::endl;
+		double r = static_cast <double> (rand()) / (static_cast <double> (RAND_MAX/5));
+		q.enq(r);
+		if (i == 2){
+			std::cout << "producer wrote 2 items" << std::endl;
+			prom.set_value();
+		}
+		//std::cout << "Produced produced" << i << std::endl;
 		//std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
 	}
 }
 
 int main (int argc, const char** argv){
 	static const int BUFFER_SIZE = std::stoi(argv[1]);;
-	lock_free_q<int> q;
+	lock_free_q<double> q;
+	std::promise<void> data_ready;
+	auto fut = data_ready.get_future();
+
 	auto start = std::chrono::system_clock::now();
-	std::thread c1(consumer, std::ref(q), BUFFER_SIZE);
-	std::thread p1(producer, std::ref(q), BUFFER_SIZE);
-	c1.join();
+	std::thread p1(producer, std::ref(q), BUFFER_SIZE*1000, std::move(data_ready));
+	std::thread c1(consumer, std::ref(q), BUFFER_SIZE,std::move(fut));
 	p1.join();
+	c1.join();
 	auto end = std::chrono::system_clock::now();
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 	std::cout << elapsed.count() << '\n';
 	return 0;
 }
